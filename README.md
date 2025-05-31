@@ -61,6 +61,6 @@ streamlit run app.py
 
 
 ---
-© 2025 Geisol Urbina | EC Utbildning. Alla rättigheter förbehållna.
+Geisol Urbina | EC Utbildning
 
 
