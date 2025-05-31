@@ -1,0 +1,13 @@
+# Python virtuell miljö
+venv/
+
+# Miljövariabler
+.env
+
+# Genererade data / index
+data/
+data/faiss_index/
+
+# Python-artefakter
+__pycache__/
+*.py[cod]
