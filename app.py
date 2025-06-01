@@ -52,7 +52,6 @@ st.set_page_config(
 # --------------------------
 
 st.title("📖 Bibel-Chatbot - Fråga om Bibeln")
-st.write("Välkommen! Ställ en fråga om ett bibelavsnitt eller tema så hjälper jag dig så gott jag kan.")
 
 # --------------------------
 # SKAPA EGNA PROMPT-TEMPLATE
@@ -157,7 +156,7 @@ def load_retriever():
             embeddings,
             allow_dangerous_deserialization=True
         )
-        st.success("✅ Kunskapsbas laddad!")
+        st.success("Välkommen!")
         return store.as_retriever(search_kwargs={"k": 3})
     except Exception as e:
         st.error(f"🔴 Fel vid laddning av FAISS-index: {str(e)}")
@@ -245,19 +244,21 @@ if user_input := st.chat_input("Skriv din fråga här..."):
     st.session_state.messages.append({"role": "assistant", "content": answer})
     st.chat_message("assistant").write(answer)
     
-# Enkelt feedbacksystem + loggning
-st.write("📋 **Var det här svaret hjälpsamt?**")
-col1, col2 = st.columns(2)
+# Visa feedback först efter 2 frågor (4 meddelanden: user + assistant x2)
+if len(st.session_state.messages) >= 4:
+    st.write("📋 **Var det här svaret hjälpsamt?**")
+    col1, col2 = st.columns(2)
 
-with col1:
-    if st.button("👍 Ja", key=f"yes_{len(st.session_state.messages)}"):
-        st.success("Tack för din feedback! 🙏")
-        spara_feedback(user_input, answer, "Ja")
+    with col1:
+        if st.button("👍 Ja", key=f"yes_{len(st.session_state.messages)}"):
+            st.success("Tack för din feedback! 🙏")
+            spara_feedback(user_input, answer, "Ja")
 
-with col2:
-    if st.button("👎 Nej", key=f"no_{len(st.session_state.messages)}"):
-        st.warning("Tack! Vi jobbar på att bli bättre. 💡")
-        spara_feedback(user_input, answer, "Nej")
+    with col2:
+        if st.button("👎 Nej", key=f"no_{len(st.session_state.messages)}"):
+            st.warning("Tack! Vi jobbar på att bli bättre. 💡")
+            spara_feedback(user_input, answer, "Nej")
+
 
 
 # --------------------------
