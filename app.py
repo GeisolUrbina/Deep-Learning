@@ -3,9 +3,20 @@
 # --------------------------
 
 import os
+import json
+import requests
+import time
 from dotenv import load_dotenv
 import streamlit as st
 import openai
+
+from langchain.schema import Document
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
+from langchain.chat_models import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from langchain.chains import RetrievalQA
 
 # --------------------------
 # KONFIGURATION & SÄKERHET
@@ -17,21 +28,11 @@ load_dotenv()
 # Hämta API-nyckeln från miljön (eller från Streamlit Secrets på Cloud)
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
-    st.error("⚠️ OPENAI_API_KEY saknas i miljön. Lägg in den i en lokal .env eller i Streamlit Secrets.")
+    st.error("⚠️ OPENAI_API_KEY saknas i miljön. Lägg in den i Streamlit Secrets eller i en lokal .env.")
     st.stop()
 
 # Sätt API-nyckeln för openai-paketet
 openai.api_key = api_key
-
-# --------------------------
-# IMPORTERA BIBLIOTEK OCH MODULER
-# --------------------------
-
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.chat_models import ChatOpenAI
-from langchain.prompts import PromptTemplate
-from langchain.chains import RetrievalQA
 
 # --------------------------
 # SIDKONFIGURATION OCH DESIGN
@@ -43,7 +44,86 @@ st.set_page_config(
 )
 
 # --------------------------
-# SKAPA EGNA PROMPT-TEMPLATE
+# FUNKTION FÖR ATT BYGGA FAISS-INDEX OM DET SAKNAS
+# --------------------------
+
+def build_faiss_index():
+    """
+    Hämtar alla bibelböcker via Bible API, chunkar text,
+    skapar embeddings och sparar FAISS-indexet i data/faiss_index/.
+    Körs bara om indexmappen saknas.
+    """
+    # Läs in alla böcker/kapitel från books.json
+    with open("books.json", "r", encoding="utf-8") as f:
+        BOOKS = json.load(f)
+
+    documents = []
+    for book, chapters in BOOKS.items():
+        for chap in range(1, chapters + 1):
+            url = f"https://bible-api.com/{book}%20{chap}"
+            while True:
+                r = requests.get(url)
+                if r.status_code == 429:
+                    retry_after = int(r.headers.get("Retry-After", 5))
+                    st.write(f"Rate limit på {book} kapitel {chap}, väntar {retry_after}s…")
+                    time.sleep(retry_after)
+                    continue
+                r.raise_for_status()
+                break
+
+            text = r.json().get("text", "")
+            documents.append(Document(page_content=text,
+                                      metadata={"book": book, "chapter": chap}))
+            time.sleep(0.2)  # Paus mellan anrop
+
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    chunks = splitter.split_documents(documents)
+    st.write(f"Totalt chunkar: {len(chunks)}")
+
+    embeddings = OpenAIEmbeddings(openai_api_key=api_key)
+    index = FAISS.from_documents(chunks, embeddings)
+
+    os.makedirs("data/faiss_index", exist_ok=True)
+    index.save_local("data/faiss_index")
+    st.write("🔥 FAISS-index byggt och sparat i data/faiss_index/")
+
+# --------------------------
+# BYGG INDEX OM DEN SAKNAS
+# --------------------------
+
+if not os.path.isdir("data/faiss_index"):
+    st.sidebar.info("📥 Bygger om FAISS-index – detta kan ta ett par minuter.")
+    build_faiss_index()
+else:
+    st.sidebar.success("✅ FAISS-index finns, används som det är.")
+
+# --------------------------
+# FUNKTION FÖR ATT LADDAR FAISS-INDEX
+# --------------------------
+
+@st.cache_resource
+def load_retriever():
+    """
+    Ladda FAISS-index och skapa en retriever-objekt.
+    Returnerar en retriever som kan användas för likhetssökning.
+    """
+    embeddings = OpenAIEmbeddings(openai_api_key=api_key)
+    store = FAISS.load_local(
+        "data/faiss_index",
+        embeddings,
+        allow_dangerous_deserialization=True
+    )
+    return store.as_retriever(search_kwargs={"k": 3})
+
+# ──────────────────────────────────────────────────────────────────────────
+# LÄS IN FAISS-INDEXET OCH BYGG RETRIEVER
+# ──────────────────────────────────────────────────────────────────────────
+
+with st.spinner("Laddar FAISS-retriever…"):
+    retriever = load_retriever()
+
+# --------------------------
+# SKAPA PROMPT-TEMPLATE
 # --------------------------
 
 prompt = PromptTemplate(
@@ -61,37 +141,6 @@ Fråga:
 Svar:
 """
 )
-
-# --------------------------
-# FUNKTION FÖR ATT LADDAR FAISS-INDEX
-# --------------------------
-
-@st.cache_resource
-def load_retriever(index_path: str):
-    """
-    Ladda FAISS-index och skapa en retriever-objekt.
-
-    Parametrar:
-    - index_path: Sökväg till mappen där FAISS-index har sparats.
-
-    Returnerar:
-    - En retriever som kan användas för likhetssökning.
-    """
-    embeddings = OpenAIEmbeddings(openai_api_key=api_key)
-
-    store = FAISS.load_local(
-        index_path,
-        embeddings,
-        allow_dangerous_deserialization=True
-    )
-    return store.as_retriever(search_kwargs={"k": 3})
-
-# --------------------------
-# LÄS IN FAISS-INDEXET
-# --------------------------
-
-with st.spinner("Laddar kunskapsbas..."):
-    retriever = load_retriever("data/faiss_index")
 
 # --------------------------
 # INITIERA LLM OCH QA-KEDJA
@@ -118,7 +167,7 @@ if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "Hej! Jag är din Bibel-Chatbot. Fråga gärna om något bibelställe eller tema, så hjälper jag dig!"
+            "content": "Hej! Jag är din Bibel-Chatbot. Fråga gärna om något bibelställe eller tema!"
         }
     ]
 
@@ -127,20 +176,16 @@ if "messages" not in st.session_state:
 # --------------------------
 
 for msg in st.session_state.messages:
-    if msg["role"] == "user":
-        st.chat_message("user").write(msg["content"])
-    else:
-        st.chat_message("assistant").write(msg["content"])
+    st.chat_message(msg["role"]).write(msg["content"])
 
 # --------------------------
 # INPUTFÄLT FÖR ANVÄNDARENS FRÅGA
 # --------------------------
 
-if user_input := st.chat_input("Skriv din fråga här..."):
+if user_input := st.chat_input("Skriv din fråga här…"):
     st.session_state.messages.append({"role": "user", "content": user_input})
     st.chat_message("user").write(user_input)
 
-    # Anropa QA-kedjan för att få svaret
     try:
         answer = qa_chain.run(user_input)
     except Exception as e:
