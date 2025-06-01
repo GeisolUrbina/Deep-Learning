@@ -3,9 +3,11 @@
 # --------------------------
 
 import os
+import zipfile
 from dotenv import load_dotenv
 import streamlit as st
 import openai
+import gdown
 
 # --------------------------
 # KONFIGURATION & SÄKERHET
@@ -63,22 +65,39 @@ Svar:
 )
 
 # --------------------------
-# FUNKTION FÖR ATT LADDAR FAISS-INDEX
+# FUNKTION FÖR ATT LADDA FAISS-INDEX FRÅN GOOGLE DRIVE
 # --------------------------
 
 @st.cache_resource
-def load_retriever(index_path: str):
+def load_retriever():
     """
-    Ladda FAISS-index och skapa en retriever-objekt.
-
-    Parametrar:
-    - index_path: Sökväg till mappen där FAISS-index har sparats.
-
-    Returnerar:
-    - En retriever som kan användas för likhetssökning.
+    Ladda FAISS-index från Google Drive om det inte finns lokalt,
+    och skapa en retriever-objekt.
     """
+    # Kontrollera om indexet redan finns
+    index_path = "data/faiss_index"
+    if not os.path.exists(index_path):
+        with st.spinner("Laddar FAISS-index från Google Drive..."):
+            # Skapa mapp om den inte finns
+            os.makedirs("data", exist_ok=True)
+            
+            # Ladda ner komprimerad fil från Google Drive
+            zip_path = "faiss_index.zip"
+            gdown.download(
+                "https://drive.google.com/uc?id=DIN_GOOGLE_DRIVE_ID_HÄR",
+                zip_path,
+                quiet=False
+            )
+            
+            # Packa upp filen
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall("data/")
+            
+            # Ta bort zip-filen
+            os.remove(zip_path)
+    
+    # Ladda indexet
     embeddings = OpenAIEmbeddings(openai_api_key=api_key)
-
     store = FAISS.load_local(
         index_path,
         embeddings,
@@ -91,7 +110,7 @@ def load_retriever(index_path: str):
 # --------------------------
 
 with st.spinner("Laddar kunskapsbas..."):
-    retriever = load_retriever("data/faiss_index")
+    retriever = load_retriever()
 
 # --------------------------
 # INITIERA LLM OCH QA-KEDJA
@@ -162,4 +181,3 @@ st.caption("""
 Datakälla: Svenska Bibelsällskapet | 
 Byggd med Python & LangChain
 """)
-
