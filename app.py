@@ -10,24 +10,22 @@ import zipfile
 import gdown
 
 # --------------------------
-# KONFIGURATION & SÄKERHET
+# KONFIGURATION & SÄKERHET 
 # --------------------------
 
-# Ladda .env-fil och kontrollera API-nyckeln
-env_path = find_dotenv()
-if not env_path:
-    raise FileNotFoundError(
-        "⚠️ .env-fil inte hittad. Se till att den ligger i projektets rotkatalog."
-    )
-load_dotenv(env_path)
+try:
+    # Försök hämta från Streamlit Secrets först
+    api_key = st.secrets["OPENAI_API_KEY"]
+except:
+    # Fallback till .env-fil för lokal utveckling
+    from dotenv import load_dotenv
+    load_dotenv()
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        st.error("❌ API-nyckel saknas. Konfigurera den i Secrets eller .env-fil.")
+        st.stop()
 
-# Hämta API-nyckel
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("🔑 API-nyckel saknas i .env-filen. Kontrollera att OPENAI_API_KEY är definierad.")
-# Sätt API-nyckeln för `openai`-paketet
-oai = openai
-oai.api_key = api_key
+openai.api_key = api_key
 
 # --------------------------
 # IMPORTERA BIBLIOTEK OCH MODULER
