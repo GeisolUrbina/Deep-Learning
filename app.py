@@ -9,6 +9,7 @@ from dotenv import load_dotenv, find_dotenv
 import zipfile
 import gdown
 
+
 # --------------------------
 # KONFIGURATION & SÄKERHET 
 # --------------------------
@@ -36,6 +37,14 @@ from langchain_community.vectorstores.faiss import FAISS
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
+
+# --------------------------
+# TITEL OCH INTRODUKTION
+# --------------------------
+
+st.title("📖 Bibel-Chatbot - Fråga om Bibeln")
+st.write("Välkommen! Ställ en fråga om ett bibelavsnitt eller tema så hjälper jag dig så gott jag kan.")
+
 
 # --------------------------
 # SIDKONFIGURATION OCH DESIGN
@@ -154,6 +163,29 @@ def load_retriever():
     except Exception as e:
         st.error(f"🔴 Fel vid laddning av FAISS-index: {str(e)}")
         st.stop()
+        
+# --------------------------
+# FUNKTION FÖR ATT SPARA FEEDBACK TILL CSV
+# --------------------------
+import csv
+from datetime import datetime
+
+def spara_feedback(fraga, svar, feedback):
+    filnamn = "feedback_logg.csv"
+    tidpunkt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    rad = [tidpunkt, fraga, svar, feedback]
+
+    # Skapa fil med rubriker om den inte redan finns
+    if not os.path.exists(filnamn):
+        with open(filnamn, mode="w", newline="", encoding="utf-8") as fil:
+            writer = csv.writer(fil)
+            writer.writerow(["Tidpunkt", "Fråga", "Svar", "Feedback"])
+            writer.writerow(rad)
+    else:
+        with open(filnamn, mode="a", newline="", encoding="utf-8") as fil:
+            writer = csv.writer(fil)
+            writer.writerow(rad)
 
 # --------------------------
 # LÄS IN FAISS-INDEXET
@@ -213,6 +245,21 @@ if user_input := st.chat_input("Skriv din fråga här..."):
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
     st.chat_message("assistant").write(answer)
+    
+# Enkelt feedbacksystem + loggning
+st.write("📋 **Var det här svaret hjälpsamt?**")
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("👍 Ja", key=f"yes_{len(st.session_state.messages)}"):
+        st.success("Tack för din feedback! 🙏")
+        spara_feedback(user_input, answer, "Ja")
+
+with col2:
+    if st.button("👎 Nej", key=f"no_{len(st.session_state.messages)}"):
+        st.warning("Tack! Vi jobbar på att bli bättre. 💡")
+        spara_feedback(user_input, answer, "Nej")
+
 
 # --------------------------
 # FOOTER
