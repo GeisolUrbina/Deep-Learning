@@ -107,9 +107,7 @@ def load_retriever():
         # Vi har redan indexet i någon underkatalog av data
         index_path = befintlig_mapp
     else:
-       
-        #Ladda och extrahera ZIP’en
-       
+        # Ladda och extrahera ZIP’en
         with st.spinner("🔄 Hämtar kunskapsbas från Google Drive..."):
             try:
                 download_url = f"https://drive.google.com/uc?id={GOOGLE_DRIVE_ID}&export=download"
@@ -123,14 +121,8 @@ def load_retriever():
                 # Ta bort ZIP-filen efter extrahering
                 os.remove(ZIP_PATH)
 
-              
                 # Leta efter den mapp som faktiskt innehåller index-filerna
-         
                 index_path = hitta_index_mapp()
-                # (för felsökning) Skriv ut vilka filer som finns under data-mappen:
-                for root, dirs, files in os.walk(BASE_DIR):
-                    for file in files:
-                        st.write("📂 Extraherad fil:", os.path.join(root, file))
 
                 if not index_path:
                     raise FileNotFoundError("Nödvändiga indexfiler saknas efter extrahering.")
@@ -149,8 +141,7 @@ def load_retriever():
                     os.remove(ZIP_PATH)
                 st.stop()
 
-    
-    #Ladda FAISS-index med embeddings
+    # Ladda FAISS-index med embeddings
     try:
         embeddings = OpenAIEmbeddings()
         store = FAISS.load_local(
@@ -164,7 +155,6 @@ def load_retriever():
         st.error(f"🔴 Fel vid laddning av FAISS-index: {str(e)}")
         st.stop()
 
-        
 # --------------------------
 # LÄS IN FAISS-INDEXET
 # --------------------------
