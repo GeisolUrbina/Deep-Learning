@@ -244,6 +244,10 @@ if user_input := st.chat_input("Skriv din fråga här..."):
     st.session_state.messages.append({"role": "assistant", "content": answer})
     st.chat_message("assistant").write(answer)
     
+# ✅ Spara senaste fråga och svar för feedback
+st.session_state["senaste_fraga"] = user_input
+st.session_state["senaste_svar"] = answer
+    
 # Visa feedback först efter 2 frågor (4 meddelanden: user + assistant x2)
 if len(st.session_state.messages) >= 4:
     st.write("📋 **Var det här svaret hjälpsamt?**")
@@ -252,12 +256,21 @@ if len(st.session_state.messages) >= 4:
     with col1:
         if st.button("👍 Ja", key=f"yes_{len(st.session_state.messages)}"):
             st.success("Tack för din feedback! 🙏")
-            spara_feedback(user_input, answer, "Ja")
+            spara_feedback(
+                st.session_state.get("senaste_fraga", ""),
+                st.session_state.get("senaste_svar", ""),
+                "Ja"
+            )
 
     with col2:
         if st.button("👎 Nej", key=f"no_{len(st.session_state.messages)}"):
             st.warning("Tack! Vi jobbar på att bli bättre. 💡")
-            spara_feedback(user_input, answer, "Nej")
+            spara_feedback(
+                st.session_state.get("senaste_fraga", ""),
+                st.session_state.get("senaste_svar", ""),
+                "Nej"
+            )
+
 
 
 
