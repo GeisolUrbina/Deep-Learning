@@ -84,7 +84,7 @@ def load_retriever():
             # Ladda ner komprimerad fil från Google Drive
             zip_path = "faiss_index.zip"
             gdown.download(
-                "https://drive.google.com/uc?id=DIN_GOOGLE_DRIVE_ID_HÄR",
+                "https://drive.google.com/file/d/1OIf8Kv3Ebc0TFxiqCWA2v96QYQsQadzw/view?usp=sharing",
                 zip_path,
                 quiet=False
             )
