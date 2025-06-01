@@ -73,8 +73,8 @@ Svar:
 @st.cache_resource
 def load_retriever():
     """
-    Ladda FAISS-index från Google Drive
-    med bättre felhantering och extrahering.
+    Ladda FAISS-index från Google Drive, extrahera allt under ./data
+    och hitta automagiskt den mapp som innehåller index.faiss + index.pkl.
     """
     import os
     import zipfile
@@ -82,37 +82,58 @@ def load_retriever():
     from langchain.embeddings import OpenAIEmbeddings
     from langchain_community.vectorstores.faiss import FAISS
 
-    # Konfiguration
+    # Google Drive-ID för ZIP:en som innehåller faiss_index/
     GOOGLE_DRIVE_ID = "1fDt5WhZPV_C-u5XM5tzaI5TSaxnLuL31"
-    INDEX_PATH = "data/faiss_index"
     ZIP_PATH = "temp_data.zip"
+    BASE_DIR = "data"  # där vi extraherar allt
 
-    # Skapa mappstruktur om den inte finns
-    os.makedirs("data", exist_ok=True)
+    # Se till att data-mappen finns
+    os.makedirs(BASE_DIR, exist_ok=True)
 
-    # Kontrollera om index redan finns
-    if not all(os.path.exists(f"{INDEX_PATH}/{f}") for f in ["index.faiss", "index.pkl"]):
+    # Kontrollera om vi redan har index-filerna
+    def hitta_index_mapp():
+        """
+        Leta igenom BASE_DIR och returnera första mapp som har
+        både index.faiss och index.pkl.
+        Returnerar sökvägen (str) om hittad, annars None.
+        """
+        for root, dirs, files in os.walk(BASE_DIR):
+            if "index.faiss" in files and "index.pkl" in files:
+                return root
+        return None
+
+    befintlig_mapp = hitta_index_mapp()
+    if befintlig_mapp:
+        # Vi har redan indexet i någon underkatalog av data
+        index_path = befintlig_mapp
+    else:
+       
+        #Ladda och extrahera ZIP’en
+       
         with st.spinner("🔄 Hämtar kunskapsbas från Google Drive..."):
             try:
-                # Ladda ner zip från Google Drive
                 download_url = f"https://drive.google.com/uc?id={GOOGLE_DRIVE_ID}&export=download"
+                # Ladda ner ZIP till lokalt ZIP_PATH
                 gdown.download(download_url, ZIP_PATH, quiet=False)
 
-                # Extrahera hela zip-filen till ./data
-                with zipfile.ZipFile(ZIP_PATH, 'r') as zip_ref:
-                    zip_ref.extractall("data")
+                # Extrahera hela ZIP till ./data
+                with zipfile.ZipFile(ZIP_PATH, "r") as zip_ref:
+                    zip_ref.extractall(BASE_DIR)
 
-                # Rensa upp zip-filen
+                # Ta bort ZIP-filen efter extrahering
                 os.remove(ZIP_PATH)
 
-                # Debug: visa extraherade filer (valfritt)
-                for root, dirs, files in os.walk("data"):
+              
+                # Leta efter den mapp som faktiskt innehåller index-filerna
+         
+                index_path = hitta_index_mapp()
+                # (för felsökning) Skriv ut vilka filer som finns under data-mappen:
+                for root, dirs, files in os.walk(BASE_DIR):
                     for file in files:
-                        st.write("📁 Extraherad fil:", os.path.join(root, file))
+                        st.write("📂 Extraherad fil:", os.path.join(root, file))
 
-                # Verifiera att nödvändiga indexfiler finns
-                if not all(os.path.exists(f"{INDEX_PATH}/{f}") for f in ["index.faiss", "index.pkl"]):
-                    raise FileNotFoundError("Nödvändiga indexfiler saknas efter extrahering")
+                if not index_path:
+                    raise FileNotFoundError("Nödvändiga indexfiler saknas efter extrahering.")
 
             except zipfile.BadZipFile:
                 st.error("""
@@ -128,11 +149,12 @@ def load_retriever():
                     os.remove(ZIP_PATH)
                 st.stop()
 
-    # Ladda FAISS-index med embeddings
+    
+    #Ladda FAISS-index med embeddings
     try:
         embeddings = OpenAIEmbeddings()
         store = FAISS.load_local(
-            INDEX_PATH,
+            index_path,
             embeddings,
             allow_dangerous_deserialization=True
         )
@@ -141,7 +163,7 @@ def load_retriever():
     except Exception as e:
         st.error(f"🔴 Fel vid laddning av FAISS-index: {str(e)}")
         st.stop()
-    
+
         
 # --------------------------
 # LÄS IN FAISS-INDEXET
