@@ -67,59 +67,79 @@ Svar:
 )
 
 # --------------------------
-# FUNKTION FÖR ATT LADDA FAISS-INDEX
+# OPTIMERAD FUNKTION FÖR ATT LADDA FAISS-INDEX
 # --------------------------
 
 @st.cache_resource
 def load_retriever():
     """
-    Ladda FAISS-index från Google Drive om det inte finns lokalt,
-    och skapa en retriever-objekt.
+    Ladda FAISS-index från Google Drive
+    med bättre felhantering och länkhantering.
     """
-    index_path = "data/faiss_index"
-    zip_path = "data.zip"
+    # Konfiguration
+    GOOGLE_DRIVE_ID = "1fDt5WhZPV_C-u5XM5tzaI5TSaxnLuL31"
+    INDEX_PATH = "data/faiss_index"
+    ZIP_PATH = "temp_data.zip"  # Använder temporär filnamn
     
-    if not os.path.exists(index_path):
-        with st.spinner("Förbereder kunskapsbas..."):
-            # Skapa mapp om den inte finns
-            os.makedirs("data", exist_ok=True)
-            
-            # Ladda ner från Google Drive om zip-fil saknas
-            if not os.path.exists(zip_path):
-                try:
-                    gdown.download(
-                        "https://drive.google.com/file/d/1bdspw4vRQ6Ui0oaTE91B5WyVEz0vD8cA/view?usp=drive_link",
-                        zip_path,
-                        quiet=False
-                    )
-                except Exception as e:
-                    st.error(f"Kunde inte ladda ner fil: {str(e)}")
-                    st.stop()
-            
-            # Verifiera och packa upp zip-filen
+    # Skapa mappstruktur om den inte finns
+    os.makedirs(INDEX_PATH, exist_ok=True)
+    
+    # Kontrollera om index redan finns
+    if not all(os.path.exists(f"{INDEX_PATH}/{f}") for f in ["index.faiss", "index.pkl"]):
+        with st.spinner("🔄 Hämtar kunskapsbas från Google Drive..."):
             try:
-                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                    zip_ref.extractall("data/")
+                # Använd korrekt nedladdnings-URL format
+                download_url = f"https://drive.google.com/uc?id={GOOGLE_DRIVE_ID}&export=download"
+                
+                # Ladda ner med progress indicator
+                gdown.download(
+                    download_url,
+                    ZIP_PATH,
+                    quiet=False
+                )
+                
+                # Verifiera och extrahera ZIP
+                with zipfile.ZipFile(ZIP_PATH, 'r') as zip_ref:
+                    # Extrahera specifikt till INDEX_PATH
+                    for file in zip_ref.namelist():
+                        if file.startswith("faiss_index/"):
+                            zip_ref.extract(file, "data")
+                
+                # Rensa upp ZIP-fil efter extrahering
+                os.remove(ZIP_PATH)
+                
+                # Final verifiering
+                if not all(os.path.exists(f"{INDEX_PATH}/{f}") for f in ["index.faiss", "index.pkl"]):
+                    raise FileNotFoundError("Nödvändiga indexfiler saknas efter extrahering")
+                    
             except zipfile.BadZipFile:
-                st.error("Filen är inte en giltig ZIP. Kontrollera Google Drive-länken.")
+                st.error("""
+                ❌ Ogiltig ZIP-fil. Möjliga orsaker:
+                1. Felaktig Google Drive-länk
+                2. Filen är korrupt
+                3. Behörighetsproblem
+                """)
                 st.stop()
             except Exception as e:
-                st.error(f"Fel vid uppackning: {str(e)}")
+                st.error(f"⛔ Kritisk fel: {str(e)}")
+                if os.path.exists(ZIP_PATH):
+                    os.remove(ZIP_PATH)
                 st.stop()
     
     # Ladda FAISS-index
     try:
         embeddings = OpenAIEmbeddings()
         store = FAISS.load_local(
-            index_path,
+            INDEX_PATH,
             embeddings,
             allow_dangerous_deserialization=True
         )
+        st.success("✅ Kunskapsbas laddad!")
         return store.as_retriever(search_kwargs={"k": 3})
     except Exception as e:
-        st.error(f"Fel vid laddning av FAISS-index: {str(e)}")
+        st.error(f"🔴 Fel vid laddning av FAISS-index: {str(e)}")
         st.stop()
-
+        
 # --------------------------
 # LÄS IN FAISS-INDEXET
 # --------------------------
