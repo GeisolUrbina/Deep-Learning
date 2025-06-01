@@ -38,7 +38,7 @@ pip install -r requirements.txt
 ```bash
 cp .env.example .env
 ```
-2. Öppna ```.env.example``` och fyll i din egen nyckel:
+2. Öppna ```.env``` och fyll i din egen nyckel:
 ```bash
 OPENAI_API_KEY=din_openai_api_nyckel
 ```
