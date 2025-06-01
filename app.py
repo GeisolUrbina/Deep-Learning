@@ -39,14 +39,6 @@ from langchain.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
 
 # --------------------------
-# TITEL OCH INTRODUKTION
-# --------------------------
-
-st.title("📖 Bibel-Chatbot - Fråga om Bibeln")
-st.write("Välkommen! Ställ en fråga om ett bibelavsnitt eller tema så hjälper jag dig så gott jag kan.")
-
-
-# --------------------------
 # SIDKONFIGURATION OCH DESIGN
 # --------------------------
 
@@ -54,6 +46,13 @@ st.set_page_config(
     page_title="📖 Bibeln RAG-Chatbot", 
     layout="wide"                       
 )
+
+# --------------------------
+# TITEL OCH INTRODUKTION
+# --------------------------
+
+st.title("📖 Bibel-Chatbot - Fråga om Bibeln")
+st.write("Välkommen! Ställ en fråga om ett bibelavsnitt eller tema så hjälper jag dig så gott jag kan.")
 
 # --------------------------
 # SKAPA EGNA PROMPT-TEMPLATE
