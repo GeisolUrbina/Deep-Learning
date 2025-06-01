@@ -1,3 +1,75 @@
+# --------------------------
+# Streamlit-app för Bibel-Chatbot
+# --------------------------
+
+import os
+import openai
+import streamlit as st
+from dotenv import load_dotenv, find_dotenv
+import zipfile
+import gdown
+
+# --------------------------
+# KONFIGURATION & SÄKERHET 
+# --------------------------
+
+try:
+    # Försök hämta från Streamlit Secrets först
+    api_key = st.secrets["OPENAI_API_KEY"]
+except:
+    # Fallback till .env-fil för lokal utveckling
+    from dotenv import load_dotenv
+    load_dotenv()
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        st.error("❌ API-nyckel saknas. Konfigurera den i Secrets eller .env-fil.")
+        st.stop()
+
+openai.api_key = api_key
+
+# --------------------------
+# IMPORTERA BIBLIOTEK OCH MODULER
+# --------------------------
+
+from langchain.embeddings import OpenAIEmbeddings
+from langchain_community.vectorstores.faiss import FAISS
+from langchain.chat_models import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from langchain.chains import RetrievalQA
+
+# --------------------------
+# SIDKONFIGURATION OCH DESIGN
+# --------------------------
+
+st.set_page_config(
+    page_title="📖 Bibeln RAG-Chatbot", 
+    layout="wide"                       
+)
+
+# --------------------------
+# SKAPA EGNA PROMPT-TEMPLATE
+# --------------------------
+
+prompt = PromptTemplate(
+    input_variables=["context", "question"],
+    template="""
+Du är en vänlig och hjälpsam bibelguide som svarar på frågor genom att använda givna bibelavsnitt.
+Om du inte hittar relevant information ska du be användaren om att skriva om frågan.
+
+Kontekst:
+{context}
+
+Fråga:
+{question}
+
+Svar:
+"""
+)
+
+# --------------------------
+# OPTIMERAD FUNKTION FÖR ATT LADDA FAISS-INDEX
+# --------------------------
+
 @st.cache_resource
 def load_retriever():
     """
@@ -69,3 +141,74 @@ def load_retriever():
     except Exception as e:
         st.error(f"🔴 Fel vid laddning av FAISS-index: {str(e)}")
         st.stop()
+    
+        
+# --------------------------
+# LÄS IN FAISS-INDEXET
+# --------------------------
+
+with st.spinner("Laddar kunskapsbas..."):
+    retriever = load_retriever()
+
+# --------------------------
+# INITIERA LLM OCH QA-KEDJA
+# --------------------------
+
+llm = ChatOpenAI(
+    model_name="gpt-3.5-turbo",  
+    temperature=0                
+)
+
+qa_chain = RetrievalQA.from_chain_type(
+    llm=llm,
+    chain_type="stuff",
+    retriever=retriever,
+    return_source_documents=False,
+    chain_type_kwargs={"prompt": prompt}
+)
+
+# --------------------------
+# KONVERSATIONS-SESSIONSTATE
+# --------------------------
+
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "assistant", "content": "Hej! Jag är din Bibel-Chatbot. Fråga gärna om något bibelställe eller tema, så hjälper jag dig!"}
+    ]
+
+# --------------------------
+# RENDERA MESSAGES SOM CHATTBUBBLOR
+# --------------------------
+
+for msg in st.session_state.messages:
+    st.chat_message(msg["role"]).write(msg["content"])
+
+# --------------------------
+# INPUTFÄLT FÖR ANVÄNDARENS FRÅGA
+# --------------------------
+
+if user_input := st.chat_input("Skriv din fråga här..."):
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    st.chat_message("user").write(user_input)
+
+    try:
+        answer = qa_chain.run(user_input)
+        if not answer.strip():
+            answer = "Jag förstår inte riktigt. Kan du formulera frågan på ett annat sätt?"
+    except Exception as e:
+        answer = "❌ Ett fel uppstod vid generering av svaret. Försök igen senare."
+        st.error(f"Detaljerat fel: {e}")
+
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+    st.chat_message("assistant").write(answer)
+
+# --------------------------
+# FOOTER
+# --------------------------
+
+st.markdown("---")
+st.caption("""
+📖 *Svenska Bibel-Chatbot v1.0* | 
+Datakälla: Svenska Bibelsällskapet | 
+Byggd med Python & LangChain
+""")
