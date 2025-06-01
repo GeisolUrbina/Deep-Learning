@@ -7,7 +7,7 @@ transformers==4.35.2
 torch==2.1.1
 tiktoken==0.7.0
 openai==0.28.1
-gdown>=4.6.0
+gdown>=4.7.1
 langchain>=0.1.0
 langchain-community>=0.0.1
 faiss-cpu>=1.7.4 
