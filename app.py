@@ -3,129 +3,56 @@
 # --------------------------
 
 import os
-import json
-import requests
-import time
-from dotenv import load_dotenv
-import streamlit as st
 import openai
-
-from langchain.schema import Document
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.chat_models import ChatOpenAI
-from langchain.prompts import PromptTemplate
-from langchain.chains import RetrievalQA
+import streamlit as st
+from dotenv import load_dotenv, find_dotenv
 
 # --------------------------
 # KONFIGURATION & SÄKERHET
 # --------------------------
 
-# Försök ladda en eventuell .env-fil (fungerar lokalt, men gör inget om fil saknas)
-load_dotenv()
+# Ladda .env-fil och kontrollera API-nyckeln
+env_path = find_dotenv()
+if not env_path:
+    raise FileNotFoundError(
+        "⚠️ .env-fil inte hittad. Se till att den ligger i projektets rotkatalog."
+    )
+load_dotenv(env_path)
 
-# Hämta API-nyckeln från miljön (eller från Streamlit Secrets på Cloud)
+# Hämta API-nyckel
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
-    st.error("⚠️ OPENAI_API_KEY saknas i miljön. Lägg in den i Streamlit Secrets eller i en lokal .env.")
-    st.stop()
+    raise ValueError("🔑 API-nyckel saknas i .env-filen. Kontrollera att OPENAI_API_KEY är definierad.")
+# Sätt API-nyckeln för `openai`-paketet
+oai = openai
+oai.api_key = api_key
 
-# Sätt API-nyckeln för openai-paketet
-openai.api_key = api_key
+# --------------------------
+# IMPORTERA BIBLIOTEK OCH MODULER
+# --------------------------
+
+# LangChain-klasser för embeddings, vektorlagring, chat-modell, prompt och kedja.
+from langchain.embeddings import OpenAIEmbeddings
+from langchain_community.vectorstores.faiss import FAISS
+from langchain.chat_models import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from langchain.chains import RetrievalQA
 
 # --------------------------
 # SIDKONFIGURATION OCH DESIGN
 # --------------------------
 
+# Sätt sidinställningar för Streamlit-appen
 st.set_page_config(
-    page_title="📖 Bibeln RAG-Chatbot",
-    layout="wide"
+    page_title="📖 Bibeln RAG-Chatbot", 
+    layout="wide"                       
 )
 
 # --------------------------
-# FUNKTION FÖR ATT BYGGA FAISS-INDEX OM DET SAKNAS
+# SKAPA EGNA PROMPT-TEMPLATE
 # --------------------------
 
-def build_faiss_index():
-    """
-    Hämtar alla bibelböcker via Bible API, chunkar text,
-    skapar embeddings och sparar FAISS-indexet i data/faiss_index/.
-    Körs bara om indexmappen saknas.
-    """
-    # Läs in alla böcker/kapitel från books.json
-    with open("books.json", "r", encoding="utf-8") as f:
-        BOOKS = json.load(f)
-
-    documents = []
-    for book, chapters in BOOKS.items():
-        for chap in range(1, chapters + 1):
-            url = f"https://bible-api.com/{book}%20{chap}"
-            while True:
-                r = requests.get(url)
-                if r.status_code == 429:
-                    retry_after = int(r.headers.get("Retry-After", 5))
-                    st.write(f"Rate limit på {book} kapitel {chap}, väntar {retry_after}s…")
-                    time.sleep(retry_after)
-                    continue
-                r.raise_for_status()
-                break
-
-            text = r.json().get("text", "")
-            documents.append(Document(page_content=text,
-                                      metadata={"book": book, "chapter": chap}))
-            time.sleep(0.2)  # Paus mellan anrop
-
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    chunks = splitter.split_documents(documents)
-    st.write(f"Totalt chunkar: {len(chunks)}")
-
-    embeddings = OpenAIEmbeddings(openai_api_key=api_key)
-    index = FAISS.from_documents(chunks, embeddings)
-
-    os.makedirs("data/faiss_index", exist_ok=True)
-    index.save_local("data/faiss_index")
-    st.write("🔥 FAISS-index byggt och sparat i data/faiss_index/")
-
-# --------------------------
-# BYGG INDEX OM DEN SAKNAS
-# --------------------------
-
-if not os.path.isdir("data/faiss_index"):
-    st.sidebar.info("📥 Bygger om FAISS-index – detta kan ta ett par minuter.")
-    build_faiss_index()
-else:
-    st.sidebar.success("✅ FAISS-index finns, används som det är.")
-
-# --------------------------
-# FUNKTION FÖR ATT LADDAR FAISS-INDEX
-# --------------------------
-
-@st.cache_resource
-def load_retriever():
-    """
-    Ladda FAISS-index och skapa en retriever-objekt.
-    Returnerar en retriever som kan användas för likhetssökning.
-    """
-    embeddings = OpenAIEmbeddings(openai_api_key=api_key)
-    store = FAISS.load_local(
-        "data/faiss_index",
-        embeddings,
-        allow_dangerous_deserialization=True
-    )
-    return store.as_retriever(search_kwargs={"k": 3})
-
-# ──────────────────────────────────────────────────────────────────────────
-# LÄS IN FAISS-INDEXET OCH BYGG RETRIEVER
-# ──────────────────────────────────────────────────────────────────────────
-
-with st.spinner("Laddar FAISS-retriever…"):
-    retriever = load_retriever()
-
-# --------------------------
-# SKAPA PROMPT-TEMPLATE
-# --------------------------
-
+# Använd en PromptTemplate för att definiera hur frågan och kontexten ska formateras.
 prompt = PromptTemplate(
     input_variables=["context", "question"],
     template="""
@@ -143,63 +70,112 @@ Svar:
 )
 
 # --------------------------
+# FUNKTION FÖR ATT LADDAR FAISS-INDEX
+# --------------------------
+
+@st.cache_resource
+def load_retriever(index_path: str):
+    """
+    Ladda FAISS-index och skapa en retriever-objekt.
+
+    Parametrar:
+    - index_path: Sökväg till mappen där FAISS-index har sparats.
+
+    Returnerar:
+    - En retriever som kan användas för likhetssökning.
+    """
+    # Skapa en embeddings-instans (OpenAI-embeddings hämtar API-nyckel från miljö)
+    embeddings = OpenAIEmbeddings()
+
+    # Ladda indexet från disk
+    store = FAISS.load_local(
+        index_path,
+        embeddings,
+        allow_dangerous_deserialization=True
+    )
+
+    # Returnera retriever med fast antal källor (k=3)
+    return store.as_retriever(search_kwargs={"k": 3})
+
+# --------------------------
+# LÄS IN FAISS-INDEXET
+# --------------------------
+
+# Visa en spinner medan kunskapsbasen laddas (FAISS-indexet kan ta en stund)
+with st.spinner("Laddar kunskapsbas..."):
+    retriever = load_retriever("data/faiss_index")
+
+# --------------------------
 # INITIERA LLM OCH QA-KEDJA
 # --------------------------
 
+# ChatOpenAI: Wrapper för OpenAI:s chat-modell (gpt-3.5-turbo)
 llm = ChatOpenAI(
-    model_name="gpt-3.5-turbo",
-    temperature=0
+    model_name="gpt-3.5-turbo",  
+    temperature=0                
 )
 
+# Skapa RetrievalQA-kedjan med “stuff”-metoden och egen prompt
 qa_chain = RetrievalQA.from_chain_type(
     llm=llm,
-    chain_type="stuff",
+    chain_type="stuff",               # Enkel kedja som samlar in hela kontexten
     retriever=retriever,
-    return_source_documents=False,
-    chain_type_kwargs={"prompt": prompt}
+    return_source_documents=False,     # False, för att inte vill visa källor i svaret
+    chain_type_kwargs={"prompt": prompt}  
 )
 
 # --------------------------
 # KONVERSATIONS-SESSIONSTATE
 # --------------------------
 
+# Använd Streamlit session_state för att spara tidigare meddelanden 
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {
-            "role": "assistant",
-            "content": "Hej! Jag är din Bibel-Chatbot. Fråga gärna om något bibelställe eller tema!"
-        }
+        {"role": "assistant", "content": "Hej! Jag är din Bibel-Chatbot. Fråga gärna om något bibelställe eller tema, så hjälper jag dig!"}
     ]
 
 # --------------------------
 # RENDERA MESSAGES SOM CHATTBUBBLOR
 # --------------------------
 
+# Loopa igenom alla lagrade meddelanden och visa dem med st.chat_message
 for msg in st.session_state.messages:
-    st.chat_message(msg["role"]).write(msg["content"])
+    if msg["role"] == "user":
+        
+        st.chat_message("user").write(msg["content"])
+    else:
+        # Visa chatbotens svar som en assistent-bubble
+        st.chat_message("assistant").write(msg["content"])
 
 # --------------------------
 # INPUTFÄLT FÖR ANVÄNDARENS FRÅGA
 # --------------------------
 
-if user_input := st.chat_input("Skriv din fråga här…"):
+# st.chat_input visar ett textfält med chattliknande stil
+if user_input := st.chat_input("Skriv din fråga här..."):
+    
     st.session_state.messages.append({"role": "user", "content": user_input})
     st.chat_message("user").write(user_input)
 
-    try:
-        answer = qa_chain.run(user_input)
-    except Exception as e:
-        answer = "❌ Ett fel uppstod vid generering av svaret. Försök igen senare."
-        st.error(f"Detaljerat fel: {e}")
+    # Anropa QA-kedjan för att få svaret
+    answer = qa_chain.run(user_input)
 
+    # Hantera tomma eller irrelevanta svar
     if not answer.strip():
+        # Ge en standardfeedback om inget svar hittas
         answer = "Jag förstår inte riktigt. Kan du formulera frågan på ett annat sätt?"
-    st.session_state.messages.append({"role": "assistant", "content": answer})
-    st.chat_message("assistant").write(answer)
+        st.session_state.messages.append({"role": "assistant", "content": answer})
+        st.chat_message("assistant").write(answer)
+    else:
+        # Spara och visa det genererade svaret
+        st.session_state.messages.append({"role": "assistant", "content": answer})
+        st.chat_message("assistant").write(answer)
 
 # --------------------------
 # FOOTER
 # --------------------------
+
+# Visa en enkel footer med info om appens verktyg
 
 st.markdown("---")
 st.caption("""
