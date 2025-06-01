@@ -3,6 +3,8 @@
 En interaktiv chatbot som använder Retrieval-Augmented Generation (RAG) för att svara på frågor om Bibeln.  
 Bygger en FAISS-vektorindex av Bibeltexten via Bible API och använder OpenAI-modeller för semantiskt QA. Skalad med Streamlit för enkel web-UI.
 
+👉  Testa chatbotten här: https://bibel-chatbot.streamlit.app/
+
 ---
 
 ## 🚀 Funktioner
