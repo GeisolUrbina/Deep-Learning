@@ -51,7 +51,7 @@ st.set_page_config(
 # TITEL OCH INTRODUKTION
 # --------------------------
 
-st.title("📖 Bibel-Chatbot - Fråga om Bibeln")
+st.title("📖 Bibel-Chatbot  -  Fråga om Bibeln")
 
 # --------------------------
 # SKAPA EGNA PROMPT-TEMPLATE
