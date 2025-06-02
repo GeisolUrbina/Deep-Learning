@@ -90,7 +90,7 @@ def load_retriever():
     from langchain_community.vectorstores.faiss import FAISS
 
     # Google Drive-ID för ZIP:en som innehåller faiss_index/
-    GOOGLE_DRIVE_ID = "SKRIV_DIN_DRIVE_ID"
+    GOOGLE_DRIVE_ID = st.secrets["GOOGLE_DRIVE_ID"]
     ZIP_PATH = "temp_data.zip"
     BASE_DIR = "data"  # där vi extraherar allt
 
