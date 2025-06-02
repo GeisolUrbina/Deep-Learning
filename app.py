@@ -237,16 +237,17 @@ if user_input := st.chat_input("Skriv din fråga här..."):
         answer = qa_chain.run(user_input)
         if not answer.strip():
             answer = "Jag förstår inte riktigt. Kan du formulera frågan på ett annat sätt?"
+
+        # ✅ Endast om svaret är lyckat, spara för feedback
+        st.session_state["senaste_fraga"] = user_input
+        st.session_state["senaste_svar"] = answer
+
     except Exception as e:
         answer = "❌ Ett fel uppstod vid generering av svaret. Försök igen senare."
         st.error(f"Detaljerat fel: {e}")
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
     st.chat_message("assistant").write(answer)
-    
-# ✅ Spara senaste fråga och svar för feedback
-st.session_state["senaste_fraga"] = user_input
-st.session_state["senaste_svar"] = answer
     
 # Visa feedback först efter 2 frågor (4 meddelanden: user + assistant x2)
 if len(st.session_state.messages) >= 4:
