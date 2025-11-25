@@ -90,7 +90,6 @@ def load_retriever():
     import zipfile
     import gdown
 
-    # ❗ Uppdaterade imports här också
     from langchain_openai import OpenAIEmbeddings
     from langchain_community.vectorstores import FAISS
 
@@ -156,8 +155,8 @@ def load_retriever():
     # Ladda FAISS-index med embeddings
     try:
         embeddings = OpenAIEmbeddings(
-            model="text-embedding-3-large",   # Måste anges i nya versionen
-            api_key=api_key
+            model="text-embedding-3-large",   
+             openai_api_key=api_key
         )
 
         store = FAISS.load_local(
@@ -212,9 +211,9 @@ with st.spinner("Laddar kunskapsbas..."):
 # --------------------------
 
 llm = ChatOpenAI(
-    model="gpt-3.5-turbo",   # ❗ model_name → model (ny syntax)
+    model_name="gpt-3.5-turbo",
     temperature=0,
-    api_key=api_key          # ❗ Måste anges i nya versionen
+    openai_api_key=api_key
 )
 
 qa_chain = RetrievalQA.from_chain_type(
@@ -279,5 +278,6 @@ st.caption("""
 Datakälla: Svenska Bibelsällskapet | 
 Byggd med Python & LangChain
 """)
+
 
 
