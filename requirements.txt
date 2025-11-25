@@ -9,8 +9,9 @@ tiktoken==0.7.0
 openai==1.40.0
 gdown>=4.7.1
 
-# KOMPATIBLA LANGCHAIN VERSIONER
 langchain==0.2.11
 langchain-core==0.2.23
 langchain-community==0.2.11
 langchain-openai==0.1.14
+
+# force rebuild 2
