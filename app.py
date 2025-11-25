@@ -91,7 +91,7 @@ def load_retriever():
     import zipfile
     import gdown
 
-    from langchain_openai import OpenAIEmbeddings
+    from langchain_openai.embeddings import OpenAIEmbeddings
     from langchain_community.vectorstores import FAISS
 
     # Google Drive-ID för ZIP:en som innehåller faiss_index/
@@ -274,5 +274,6 @@ st.caption("""
 Datakälla: Svenska Bibelsällskapet | 
 Byggd med Python & LangChain
 """)
+
 
 
