@@ -115,24 +115,19 @@ def load_retriever():
 
     befintlig_mapp = hitta_index_mapp()
     if befintlig_mapp:
-        # Vi har redan indexet i någon underkatalog av data
         index_path = befintlig_mapp
     else:
         # Ladda och extrahera ZIP’en
         with st.spinner("🔄 Hämtar kunskapsbas från Google Drive..."):
             try:
                 download_url = f"https://drive.google.com/uc?id={GOOGLE_DRIVE_ID}&export=download"
-                # Ladda ner ZIP till lokalt ZIP_PATH
                 gdown.download(download_url, ZIP_PATH, quiet=False)
 
-                # Extrahera hela ZIP till ./data
                 with zipfile.ZipFile(ZIP_PATH, "r") as zip_ref:
                     zip_ref.extractall(BASE_DIR)
 
-                # Ta bort ZIP-filen efter extrahering
                 os.remove(ZIP_PATH)
 
-                # Leta efter den mapp som faktiskt innehåller index-filerna
                 index_path = hitta_index_mapp()
 
                 if not index_path:
@@ -155,8 +150,8 @@ def load_retriever():
     # Ladda FAISS-index med embeddings
     try:
         embeddings = OpenAIEmbeddings(
-            model="text-embedding-3-large",   
-             openai_api_key=api_key
+            model="text-embedding-3-large",
+            api_key=api_key   
         )
 
         store = FAISS.load_local(
@@ -213,7 +208,7 @@ with st.spinner("Laddar kunskapsbas..."):
 llm = ChatOpenAI(
     model_name="gpt-3.5-turbo",
     temperature=0,
-    openai_api_key=api_key
+    api_key=api_key     
 )
 
 qa_chain = RetrievalQA.from_chain_type(
@@ -256,7 +251,7 @@ if user_input := st.chat_input("Skriv din fråga här..."):
         if not answer.strip():
             answer = "Jag förstår inte riktigt. Kan du formulera frågan på ett annat sätt?"
 
-        # ✅ Endast om svaret är lyckat, spara för feedback
+        # Endast om svaret är lyckat, spara för feedback
         st.session_state["senaste_fraga"] = user_input
         st.session_state["senaste_svar"] = answer
 
@@ -278,6 +273,4 @@ st.caption("""
 Datakälla: Svenska Bibelsällskapet | 
 Byggd med Python & LangChain
 """)
-
-
 
