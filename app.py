@@ -3,7 +3,6 @@
 # --------------------------
 
 import os
-import openai
 import streamlit as st
 from dotenv import load_dotenv, find_dotenv
 import zipfile
@@ -26,17 +25,18 @@ except:
         st.error("❌ API-nyckel saknas. Konfigurera den i Secrets eller .env-fil.")
         st.stop()
 
-openai.api_key = api_key
 
 # --------------------------
 # IMPORTERA BIBLIOTEK OCH MODULER
 # --------------------------
 
-from langchain.embeddings import OpenAIEmbeddings
-from langchain_community.vectorstores.faiss import FAISS
-from langchain.chat_models import ChatOpenAI
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_community.vectorstores import FAISS
 from langchain.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
+from langchain.schema import Document
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
 
 # --------------------------
 # SIDKONFIGURATION OCH DESIGN
@@ -47,11 +47,13 @@ st.set_page_config(
     layout="wide"                       
 )
 
+
 # --------------------------
 # TITEL OCH INTRODUKTION
 # --------------------------
 
 st.title("📖 Bibel-Chatbot  -  Fråga om Bibeln")
+
 
 # --------------------------
 # SKAPA EGNA PROMPT-TEMPLATE
@@ -73,6 +75,7 @@ Svar:
 """
 )
 
+
 # --------------------------
 # OPTIMERAD FUNKTION FÖR ATT LADDA FAISS-INDEX
 # --------------------------
@@ -86,8 +89,10 @@ def load_retriever():
     import os
     import zipfile
     import gdown
-    from langchain.embeddings import OpenAIEmbeddings
-    from langchain_community.vectorstores.faiss import FAISS
+
+    # ❗ Uppdaterade imports här också
+    from langchain_openai import OpenAIEmbeddings
+    from langchain_community.vectorstores import FAISS
 
     # Google Drive-ID för ZIP:en som innehåller faiss_index/
     GOOGLE_DRIVE_ID = st.secrets["GOOGLE_DRIVE_ID"]
@@ -150,21 +155,29 @@ def load_retriever():
 
     # Ladda FAISS-index med embeddings
     try:
-        embeddings = OpenAIEmbeddings()
+        embeddings = OpenAIEmbeddings(
+            model="text-embedding-3-large",   # Måste anges i nya versionen
+            api_key=api_key
+        )
+
         store = FAISS.load_local(
             index_path,
             embeddings,
             allow_dangerous_deserialization=True
         )
+
         st.success("Välkommen!")
         return store.as_retriever(search_kwargs={"k": 3})
+
     except Exception as e:
         st.error(f"🔴 Fel vid laddning av FAISS-index: {str(e)}")
         st.stop()
         
+
 # --------------------------
 # FUNKTION FÖR ATT SPARA FEEDBACK TILL CSV
 # --------------------------
+
 import csv
 from datetime import datetime
 
@@ -185,6 +198,7 @@ def spara_feedback(fraga, svar, feedback):
             writer = csv.writer(fil)
             writer.writerow(rad)
 
+
 # --------------------------
 # LÄS IN FAISS-INDEXET
 # --------------------------
@@ -192,13 +206,15 @@ def spara_feedback(fraga, svar, feedback):
 with st.spinner("Laddar kunskapsbas..."):
     retriever = load_retriever()
 
+
 # --------------------------
 # INITIERA LLM OCH QA-KEDJA
 # --------------------------
 
 llm = ChatOpenAI(
-    model_name="gpt-3.5-turbo",  
-    temperature=0                
+    model="gpt-3.5-turbo",   # ❗ model_name → model (ny syntax)
+    temperature=0,
+    api_key=api_key          # ❗ Måste anges i nya versionen
 )
 
 qa_chain = RetrievalQA.from_chain_type(
@@ -209,6 +225,7 @@ qa_chain = RetrievalQA.from_chain_type(
     chain_type_kwargs={"prompt": prompt}
 )
 
+
 # --------------------------
 # KONVERSATIONS-SESSIONSTATE
 # --------------------------
@@ -218,12 +235,14 @@ if "messages" not in st.session_state:
         {"role": "assistant", "content": "Hej! Jag är din Bibel-Chatbot. Fråga gärna om något bibelställe eller tema, så hjälper jag dig!"}
     ]
 
+
 # --------------------------
 # RENDERA MESSAGES SOM CHATTBUBBLOR
 # --------------------------
 
 for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
+
 
 # --------------------------
 # INPUTFÄLT FÖR ANVÄNDARENS FRÅGA
@@ -248,32 +267,6 @@ if user_input := st.chat_input("Skriv din fråga här..."):
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
     st.chat_message("assistant").write(answer)
-    
-# Visa feedback efter varannan användarfråga (2, 4, 6, ...)
-antal_user_messages = sum(1 for msg in st.session_state.messages if msg["role"] == "user")
-
-if antal_user_messages >= 2 and antal_user_messages % 2 == 0:
-    st.write("📋 **Var det här svaret hjälpsamt?**")
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if st.button("👍 Ja", key=f"yes_{antal_user_messages}"):
-            st.success("Tack för din feedback! 🙏")
-            spara_feedback(
-                st.session_state.get("senaste_fraga", ""),
-                st.session_state.get("senaste_svar", ""),
-                "Ja"
-            )
-
-    with col2:
-        if st.button("👎 Nej", key=f"no_{antal_user_messages}"):
-            st.warning("Tack! Vi jobbar på att bli bättre. 💡")
-            spara_feedback(
-                st.session_state.get("senaste_fraga", ""),
-                st.session_state.get("senaste_svar", ""),
-                "Nej"
-            )
-
 
 
 # --------------------------
