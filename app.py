@@ -30,7 +30,8 @@ except:
 # IMPORTERA BIBLIOTEK OCH MODULER
 # --------------------------
 
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_openai.embeddings import OpenAIEmbeddings
+from langchain_openai import ChatOpenAI
 from langchain_community.vectorstores import FAISS
 from langchain.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
@@ -273,4 +274,5 @@ st.caption("""
 Datakälla: Svenska Bibelsällskapet | 
 Byggd med Python & LangChain
 """)
+
 
