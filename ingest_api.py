@@ -5,8 +5,9 @@ import requests
 from dotenv import load_dotenv
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
+
 
 # Läs in din OpenAI-nyckel
 load_dotenv()
@@ -47,7 +48,7 @@ chunks = splitter.split_documents(docs)
 print(f'Totalt chunkar: {len(chunks)}')
 
 # Embeddings + FAISS-index
-emb = OpenAIEmbeddings(openai_api_key=api_key)
+emb = OpenAIEmbeddings(model="text-embedding-3-large", api_key=api_key)
 vector_store = FAISS.from_documents(chunks, emb)
 
 # Spara index
@@ -55,3 +56,4 @@ index_dir = 'data/faiss_index'
 os.makedirs(index_dir, exist_ok=True)
 vector_store.save_local(index_dir)
 print(f'Index sparat i {index_dir}')
+
