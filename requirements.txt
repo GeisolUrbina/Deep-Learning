@@ -15,8 +15,8 @@ langchain-community==0.2.11
 langchain-openai==0.1.14
 
 
-# force rebuild again
-rebuild=4
+# streamlit-cloud-rebuild
+
 
 
 
