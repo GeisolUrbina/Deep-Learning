@@ -32,7 +32,7 @@ except:
 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import FAISS
-from langchain_core.prompts import PromptTemplate
+from langchain.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -279,4 +279,5 @@ st.caption("""
 Datakälla: Svenska Bibelsällskapet | 
 Byggd med Python & LangChain
 """)
+
 
